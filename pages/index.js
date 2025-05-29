@@ -158,6 +158,7 @@ export default function Home() {
     if (value === "eat_late") return "◇";
     if (value === "not_eat") return "×";
     if (value === "undecided") return "△";
+    if (value === "awa") return "-";
     return "";
   };
   
@@ -201,6 +202,7 @@ export default function Home() {
               <option value="eat_early">食べる(21:00以前)</option>
               <option value="eat_late">食べる(21:00以降)</option>
               <option value="not_eat">食べない</option>
+              <option value="awa">阿波踊り</option>
               <option value="undecided">未定</option>
             </select>
           </div>
@@ -217,7 +219,7 @@ export default function Home() {
       </div>
             
       <div className="mt-6">
-        <h2 className="text-lg mb-2">みんなの夕飯予定(〇=21:00以前,◇=21:00以後,×=食べない,△=未定)</h2>
+        <h2 className="text-lg mb-2">みんなの夕飯予定(〇=21:00以前,◇=21:00以後,×=食べない,-=阿波踊り,△=未定)</h2>
         <table className="table-auto border-collapse border border-gray-400">
           <thead>
             <tr>
