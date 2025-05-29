@@ -1,115 +1,251 @@
 import Image from "next/image";
 import { Geist, Geist_Mono } from "next/font/google";
+import { useEffect, useState } from "react";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+function getNext7Days() {
+  const days = [];
+  const today = new Date();
+  
+  for(let i = 0; i < 7; i++){
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    days.push(d.toISOString().slice(0,10));
+  }
+  
+  return days;
+}
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const CORRECT_PASSWORD = "KMS1234";
+const days = getNext7Days();
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.className} ${geistMono.className} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+
+  // 日ごとのデータ保存
+  const [answers, setAnswers] = useState(() =>
+    days.reduce((acc,day) => {
+      acc[day] = "undecided";
+      return acc;
+    }, {})
+  );
+  
+  // 回答データをlocalStorageから読み込む
+  useEffect(() => {
+    const savedAnswers = localStorage.getItem("answers");
+    if (savedAnswers) {
+      setAnswers(JSON.parse(savedAnswers));
+    }
+  }, []);
+
+  // 回答が変更されたときにlocalStorageへ保存
+  useEffect(() => {
+    localStorage.setItem("answers", JSON.stringify(answers));
+  }, [answers]);
+  
+  const [password, setPassword] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  const [allUsersAnswers, setAllUsersAnswers] = useState({});
+  
+  const handleLogin = () => {
+    if (password === CORRECT_PASSWORD) {
+      setIsLoggedIn(true);
+    } else {
+      alert("パスワードが間違っています");
+    }
+  };
+  
+  const [nickname, setNickname] = useState("");
+
+  useEffect(() => {
+    const savedName = localStorage.getItem("nickname");
+    if (savedName) {
+      setNickname(savedName);
+    }
+  }, []);
+  
+  // 保存ボタン
+  const handleSaveNickname = () => {
+    localStorage.setItem("nickname", nickname);
+    alert("表示名を保存しました");
+  }
+  
+  // 回答をセット
+  const handleChange = (day, value) => {
+    setAnswers((prev) => ({ ...prev, [day]: value }));
+  };
+  
+  // 回答を保存
+  const handleSaveAnswers = () => {
+    if (!nickname) {
+      alert("表示名を入力してください");
+      return;
+    }
+    
+    
+    // 表示名を保存
+    localStorage.setItem("nickname", nickname);
+    
+
+    const allAnswers = JSON.parse(localStorage.getItem("allAnswers") || "{}");
+
+    allAnswers[nickname] = {
+      answers,
+      updatedAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem("allAnswers", JSON.stringify(allAnswers));
+    
+    setAllUsersAnswers(allAnswers);
+    alert("保存しました！");
+  };
+    
+    const handleDeleteMyData = () => {
+      if (!nickname) {
+        alert("表示名を入力してください");
+        return;
+      }
+
+      const allAnswers = JSON.parse(localStorage.getItem("allAnswers") || "{}");
+
+      if (!allAnswers[nickname]) {
+        alert(`${nickname} さんのデータは見つかりませんでした`);
+        return;
+      }
+
+      const confirmed = confirm(`${nickname} さんのデータを本当に削除しますか？`);
+      if (!confirmed) return;
+
+      delete allAnswers[nickname];
+      localStorage.setItem("allAnswers", JSON.stringify(allAnswers));
+      alert(`${nickname} さんのデータを削除しました`);
+
+      // 表示を更新
+      setAllUsersAnswers(allAnswers);
+    };
+
+  
+  useEffect(() => {
+    const stored = localStorage.getItem("allAnswers");
+    if (stored) {
+      setAllUsersAnswers(JSON.parse(stored));
+    }
+  }, []);
+  
+  
+  if (!isLoggedIn) {
+    return (
+      <div className="p-4">
+        <h1 className="text-xl mb-4">パスワードを入力してください</h1>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="border px-2 py-1 mr-2"
         />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              pages/index.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleLogin}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          ログイン
+        </button>
+      </div>
+    );
+  }
+  
+  // 表示用
+  const formatAnswer = (value) => {
+    if (value === "eat_early") return "〇";
+    if (value === "eat_late") return "◇";
+    if (value === "not_eat") return "×";
+    if (value === "undecided") return "△";
+    return "";
+  };
+  
+  return (
+    <div className="p-4">
+      <h1 className="text-xl mb-4">ようこそ！夕飯予定アプリ</h1>
+
+      <div className="mb-4">
+        <input
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+          placeholder="表示名を入力"
+          className="border px-2 py-1 mr-2"
+        />
+        <button
+          onClick={handleSaveNickname}
+          className="bg-green-500 text-white px-4 py-2 rounded"
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          表示名を保存
+        </button>
+
+        <button
+          onClick={handleDeleteMyData}
+          className="bg-red-500 text-white px-4 py-2 rounded ml-2"
         >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          自分のデータを削除する
+        </button>
+
+      </div>
+
+      <div>
+        <h2 className="text-lg mb-2">今後7日間の夕飯予定</h2>
+        {days.map((day) => (
+          <div key={day} className="mb-2">
+            <span className="mr-4">{day}</span>
+            <select
+              value={answers[day]}
+              onChange={(e) => handleChange(day, e.target.value)}
+              className="border px-2 py-1"
+            >
+              <option value="eat_early">食べる(21:00以前)</option>
+              <option value="eat_late">食べる(21:00以降)</option>
+              <option value="not_eat">食べない</option>
+              <option value="undecided">未定</option>
+            </select>
+          </div>
+        ))}
+      </div>
+            
+      <div>
+        <button
+          onClick={handleSaveAnswers}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          予定を保存する
+        </button>
+      </div>
+            
+      <div className="mt-6">
+        <h2 className="text-lg mb-2">みんなの夕飯予定(〇=21:00以前,◇=21:00以後,×=食べない,△=未定)</h2>
+        <table className="table-auto border-collapse border border-gray-400">
+          <thead>
+            <tr>
+              <th className="border border-gray-300 px-2 py-1">表示名</th>
+              {days.map((day) => (
+                <th key={day} className="border border-gray-300 px-2 py-1">{day}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(allUsersAnswers).map(([name, data]) => (
+              <tr key={name}>
+                <td className="border border-gray-300 px-2 py-1 font-bold">{name}</td>
+                {days.map((day) => {
+                  const val = data.answers[day];
+                  return (
+                    <td key={day} className="border border-gray-300 px-2 py-1 text-center">
+                      {formatAnswer(val)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
     </div>
+
   );
 }
