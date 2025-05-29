@@ -1,6 +1,11 @@
 import Image from "next/image";
 import { Geist, Geist_Mono } from "next/font/google";
 import { useEffect, useState } from "react";
+import { auth } from "../firebase";
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore"; // ←上部に追加
+import { db } from "../firebase"; // ←firebaseからdbをインポート
+import { collection, getDocs } from "firebase/firestore";
 
 function getNext7Days() {
   const days = [];
@@ -20,6 +25,8 @@ const days = getNext7Days();
 
 export default function Home() {
 
+  const [user, setUser] = useState(null);
+  
   // 日ごとのデータ保存
   const [answers, setAnswers] = useState(() =>
     days.reduce((acc,day) => {
@@ -27,6 +34,43 @@ export default function Home() {
       return acc;
     }, {})
   );
+  
+  // Firestore読み取りコードの追加
+  const fetchAllAnswers = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "users"));
+      const allAnswers = {};
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        allAnswers[data.nickname] = {
+          answers: data.answers,
+          updatedAt: data.updatedAt,
+        };
+      });
+
+      setAllUsersAnswers(allAnswers);
+    } catch (error) {
+      console.error("データ取得エラー:", error);
+      alert("Firestoreからデータを取得できませんでした");
+    }
+  };
+  
+  useEffect(() => {
+    fetchAllAnswers();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUser(user);
+      } else {
+        signInAnonymously(auth).catch(console.error);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   
   // 回答データをlocalStorageから読み込む
   useEffect(() => {
@@ -76,52 +120,57 @@ export default function Home() {
   
   // 回答を保存
   const handleSaveAnswers = () => {
+    handleSaveAnswersToFirestore();
+    fetchAllAnswers();
+    
+  };
+  
+  // Firebaseと表示名の連携
+  const handleSaveAnswersToFirestore = async () => {
     if (!nickname) {
       alert("表示名を入力してください");
       return;
     }
+
+    try {
+      const userDoc = doc(db, "users", user.uid);
+      await setDoc(userDoc, {
+        nickname,
+        answers,
+        updatedAt: new Date().toISOString(),
+      });
+
+      alert("Firestoreに保存しました！");
+    } catch (error) {
+      console.error("Firestore保存エラー:", error);
+      alert("保存に失敗しました");
+    }
+  };
     
-    
-    // 表示名を保存
-    localStorage.setItem("nickname", nickname);
-    
+  // データ削除処理
+  const handleDeleteMyData = () => {
+    if (!nickname) {
+      alert("表示名を入力してください");
+      return;
+    }
 
     const allAnswers = JSON.parse(localStorage.getItem("allAnswers") || "{}");
 
-    allAnswers[nickname] = {
-      answers,
-      updatedAt: new Date().toISOString(),
-    };
+    if (!allAnswers[nickname]) {
+      alert(`${nickname} さんのデータは見つかりませんでした`);
+      return;
+    }
 
+    const confirmed = confirm(`${nickname} さんのデータを本当に削除しますか？`);
+    if (!confirmed) return;
+
+    delete allAnswers[nickname];
     localStorage.setItem("allAnswers", JSON.stringify(allAnswers));
-    
+    alert(`${nickname} さんのデータを削除しました`);
+
+    // 表示を更新
     setAllUsersAnswers(allAnswers);
-    alert("保存しました！");
   };
-    
-    const handleDeleteMyData = () => {
-      if (!nickname) {
-        alert("表示名を入力してください");
-        return;
-      }
-
-      const allAnswers = JSON.parse(localStorage.getItem("allAnswers") || "{}");
-
-      if (!allAnswers[nickname]) {
-        alert(`${nickname} さんのデータは見つかりませんでした`);
-        return;
-      }
-
-      const confirmed = confirm(`${nickname} さんのデータを本当に削除しますか？`);
-      if (!confirmed) return;
-
-      delete allAnswers[nickname];
-      localStorage.setItem("allAnswers", JSON.stringify(allAnswers));
-      alert(`${nickname} さんのデータを削除しました`);
-
-      // 表示を更新
-      setAllUsersAnswers(allAnswers);
-    };
 
   
   useEffect(() => {
