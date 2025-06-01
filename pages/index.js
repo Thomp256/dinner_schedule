@@ -20,6 +20,25 @@ function getNext7Days() {
 const CORRECT_PASSWORD = "KMS1234";
 const DAYS = getNext7Days();
 
+
+// ★ 追加: 初期表示用のアンサーを生成するヘルパー関数
+// localStorageのデータと最新の7日間をマージする
+const getInitialAnswers = (savedData) => {
+  const initialAnswers = {};
+  
+  DAYS.forEach(day => {
+    // 保存されたデータの中に、今日から7日間に含まれる日付のデータがあればそれを使う
+    if (savedData && savedData[day] && typeof savedData[day] === 'object') {
+      initialAnswers[day] = savedData[day];
+    } else {
+      // なければ「未定」で初期化する
+      initialAnswers[day] = { status: 'undecided', time: '' };
+    }
+  });
+
+  return initialAnswers;
+};
+
 // --- メインコンポーネント ---
 
 export default function Home() {
@@ -57,18 +76,18 @@ export default function Home() {
   // 2. 認証ユーザーが変わったら、そのユーザーのデータを読み込む
   useEffect(() => {
     if (user) {
-      // localStorageからニックネームを読み込む
       const savedName = localStorage.getItem("nickname");
       if (savedName) setNickname(savedName);
 
-      // localStorageから未保存の回答を読み込む
-      const savedAnswers = localStorage.getItem(`answers_${user.uid}`);
-      if (savedAnswers) setAnswers(JSON.parse(savedAnswers));
+      const savedAnswersJSON = localStorage.getItem(`answers_${user.uid}`);
+      const savedAnswers = savedAnswersJSON ? JSON.parse(savedAnswersJSON) : {};
+
+      // ★ 変更点: 上で定義した関数を使って、表示すべき7日間だけを初期化する
+      setAnswers(getInitialAnswers(savedAnswers));
       
-      // Firestoreから全ユーザーのデータを取得
       fetchAllUsersAnswers();
     }
-  }, [user]);
+  }, [user]); // userが変わった時（初回読み込み時）に実行
 
   // 3. 回答が変更されたときにlocalStorageへ一時保存
   useEffect(() => {
