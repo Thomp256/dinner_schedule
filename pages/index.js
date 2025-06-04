@@ -127,10 +127,14 @@ export default function Home() {
     alert("表示名を保存しました");
   };
 
-  // 回答内容を変更
-  const handleChangeAnswer = (day, value) => {
-    setAnswers((prev) => ({ ...prev, [day]: value }));
-  };
+   // 回答内容を変更
+   const handleChangeAnswer = (day, status) => {
+     setAnswers((prev) => ({
+       ...prev,
+       // 以前の回答オブジェクト(...prev[day])を維持しつつ、statusプロパティのみ更新
+       [day]: { ...prev[day], status: status },
+     }));
+   };
 
   // 回答をFirestoreに保存
   const handleSaveAnswersToFirestore = async () => {
@@ -159,33 +163,34 @@ export default function Home() {
       alert("保存に失敗しました。");
     }
   };
-  
+
+
   // ★【修正】自分のデータをFirestoreから削除
   const handleDeleteMyData = async () => {
     if (!user) {
-        alert("ユーザー情報が取得できていません。");
-        return;
+      alert("ユーザー情報が取得できていません。");
+      return;
     }
 
     const confirmed = confirm("サーバーに保存されたあなたのデータを本当に削除しますか？この操作は元に戻せません。");
     if (!confirmed) return;
 
     try {
-        const userDocRef = doc(db, "users", user.uid);
-        await deleteDoc(userDocRef);
-        
-        // ローカルの回答も初期化
-        const initialAnswers = DAYS.reduce((acc, day) => {
-          acc[day] = "undecided";
-          return acc;
-        }, {});
-        setAnswers(initialAnswers);
+      const userDocRef = doc(db, "users", user.uid);
+      await deleteDoc(userDocRef);
+      
+      // ★ ローカルの回答もオブジェクト形式で初期化
+      const initialAnswers = DAYS.reduce((acc, day) => {
+        acc[day] = { status: "undecided", time: "" }; // 文字列からオブジェクトに変更
+        return acc;
+      }, {});
+      setAnswers(initialAnswers);
 
-        alert("データを削除しました。");
-        await fetchAllUsersAnswers(); // 表示を更新
+      alert("データを削除しました。");
+      await fetchAllUsersAnswers(); // 表示を更新
     } catch (error) {
-        console.error("データ削除エラー:", error);
-        alert("データの削除に失敗しました。");
+      console.error("データ削除エラー:", error);
+      alert("データの削除に失敗しました。");
     }
   };
 
@@ -214,18 +219,24 @@ export default function Home() {
     );
   }
 
-  // 表示用の記号に変換
-  const formatAnswer = (value) => {
+
+
+  // 表示用の記号とスタイルに変換
+  const formatAnswer = (answerObject) => {
+    // answerObjectが未定義またはstatusプロパティを持たない場合に対応
+    const status = answerObject?.status || 'undecided';
+
     const map = {
-      eat_early: "〇",
-      eat_late: "◇",
-      not_eat: "×",
-      undecided: "△",
-      awa: "-",
+      eat_early: { symbol: "〇", className: "text-green-500 dark:text-green-400" },
+      eat_late:  { symbol: "◇", className: "text-blue-500 dark:text-blue-400" },
+      not_eat:   { symbol: "×", className: "text-red-500 dark:text-red-400" },
+      undecided: { symbol: "△", className: "text-yellow-500 dark:text-yellow-400" },
+      awa:       { symbol: "-",  className: "text-gray-700 dark:text-gray-300" },
     };
-    return map[value] || "";
+    // 不明なステータスの場合のデフォルト値
+    return map[status] || { symbol: "?", className: "text-gray-400" };
   };
-  
+   
   return (
     <div className="p-4">
       <h1 className="text-xl mb-4">ようこそ！夕飯予定アプリ</h1>
@@ -255,7 +266,8 @@ export default function Home() {
           <div key={day} className="mb-2">
             <span className="mr-4 inline-block w-24">{day}</span>
             <select
-              value={answers[day]}
+              // ★ valueをanswers[day]オブジェクトのstatusプロパティに設定
+              value={answers[day]?.status || "undecided"}
               onChange={(e) => handleChangeAnswer(day, e.target.value)}
               className="border px-2 py-1"
             >
@@ -285,47 +297,54 @@ export default function Home() {
         </button>
       </div>
 
-      {/* みんなの予定表示 */}
-      <div className="mt-6">
-        <h2 className="text-lg mb-2">みんなの夕飯予定 (〇:21時前 ◇:21時後 ×:食べない -:阿波踊り △:未定)</h2>
-        
-        {/* テーブルのヘッダー部分 (md以上の画面でのみ表示) */}
-        <div className="hidden md:grid md:grid-cols-8 md:gap-x-2 font-bold p-2 bg-gray-100 rounded-t-lg">
-          <div className="col-span-1">表示名</div>
-          {DAYS.map((day) => (
-            <div key={day} className="text-center">{day.slice(5)}</div> // 日付を短縮 (MM-DD)
-          ))}
-        </div>
-
-        {/* テーブルのボディ部分 (ユーザーデータのループ) */}
-        <div className="space-y-4 md:space-y-0">
-          {isLoading ? <p>読み込み中...</p> : allUsersAnswers.map((userData) => (
-            // --- ここからがレスポンシブ対応のキモ ---
-            // スマホではカード、PCではグリッドの行になる
-            <div key={userData.id} className="border rounded-lg p-3 md:border-t-0 md:rounded-none md:p-0 md:grid md:grid-cols-8 md:gap-x-2 md:items-center hover:bg-gray-50">
-              
-              {/* ユーザー名 */}
-              <div className="font-bold text-lg md:text-base md:p-2 col-span-1">
-                {userData.nickname}
-              </div>
-
-              {/* 7日間の予定 (スマホでは縦、PCでは横に並ぶ) */}
-              {/* スマホ用にgridでレイアウト */}
-              <div className="grid grid-cols-4 gap-2 mt-2 md:col-span-7 md:grid-cols-7 md:mt-0">
-                {DAYS.map((day) => (
-                  <div key={day} className="text-center p-1 rounded-md bg-gray-100 md:bg-transparent">
-                    {/* スマホ用に日付を表示 */}
-                    <div className="text-xs text-gray-500 md:hidden">{day.slice(5)}</div>
-                    <div className="text-lg font-mono">{formatAnswer(userData.answers[day])}</div>
-                  </div>
-                ))}
-              </div>
-
-            </div>
-            // --- ここまで ---
-          ))}
-        </div>
+    {/* みんなの予定表示 */}
+    <div className="mt-6">
+      <h2 className="text-lg mb-2">
+        みんなの夕飯予定 (
+        <span className="text-green-500 dark:text-green-400 font-bold">〇</span>:21時前{' '}
+        <span className="text-blue-500 dark:text-blue-400 font-bold">◇</span>:21時後{' '}
+        <span className="text-red-500 dark:text-red-400 font-bold">×</span>:食べない{' '}
+        <span className="text-gray-700 dark:text-gray-300 font-bold">-</span>:阿波踊り{' '}
+        <span className="text-yellow-500 dark:text-yellow-400 font-bold">△</span>:未定
+        )
+      </h2>
+      
+      {/* テーブルのヘッダー部分 (md以上の画面でのみ表示) */}
+      <div className="hidden md:grid md:grid-cols-8 md:gap-x-2 font-bold p-2 bg-gray-100 dark:bg-gray-800 rounded-t-lg">
+        <div className="col-span-1">表示名</div>
+        {DAYS.map((day) => (
+          <div key={day} className="text-center">{day.slice(5)}</div>
+        ))}
       </div>
+
+      {/* テーブルのボディ部分 (ユーザーデータのループ) */}
+      <div className="space-y-4 md:space-y-0">
+        {isLoading ? <p>読み込み中...</p> : allUsersAnswers.map((userData) => (
+          <div key={userData.id} className="border rounded-lg p-3 md:border-t-0 md:rounded-none md:p-0 md:grid md:grid-cols-8 md:gap-x-2 md:items-center hover:bg-gray-50 dark:hover:bg-gray-700">
+            
+            <div className="font-bold text-lg md:text-base md:p-2 col-span-1">
+              {userData.nickname}
+            </div>
+
+            <div className="grid grid-cols-4 gap-2 mt-2 md:col-span-7 md:grid-cols-7 md:mt-0">
+              {DAYS.map((day) => {
+                // ★ formatAnswerの結果を一旦変数に格納
+                const formatted = formatAnswer(userData.answers[day]);
+                return (
+                  <div key={day} className="text-center p-1 rounded-md bg-gray-100 dark:bg-gray-700 md:bg-transparent md:dark:bg-transparent">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 md:hidden">{day.slice(5)}</div>
+                    {/* ★ classNameに動的なクラスを追加し、記号を表示 */}
+                    <div className={`text-lg font-mono ${formatted.className}`}>
+                      {formatted.symbol}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
 
     </div>
   );
