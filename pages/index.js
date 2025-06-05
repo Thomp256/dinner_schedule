@@ -3,6 +3,9 @@ import { auth, db } from "../firebase"; // firebaseからauthとdbをインポ�
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, getDoc, getDocs, collection, deleteDoc } from "firebase/firestore";
 
+// ...（他のインポート文）
+
+
 // --- 定数とヘルパー関数 ---
 
 // 今後7日間の日付配列を生成する関数
@@ -17,8 +20,11 @@ function getNext7Days() {
   return days;
 }
 
-const CORRECT_PASSWORD = "KMS1234";
+const CORRECT_PASSWORD = "l";
 const DAYS = getNext7Days();
+
+// 正解のコマンドをここで定義します（好きな順番、好きな数に変更できます）
+const CORRECT_SEQUENCE = ['🍎', '🍋', '🍎', '🍇'];
 
 
 // ★ 追加: 初期表示用のアンサーを生成するヘルパー関数
@@ -53,10 +59,49 @@ export default function Home() {
   );
   const [allUsersAnswers, setAllUsersAnswers] = useState([]); // オブジェクトから配列に変更
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [password, setPassword] = useState("");
+  //もう使わない const [password, setPassword] = useState("");
+  
+  // ★ 新しいログイン方法のために、以下の2つのStateを追加
+  const [inputSequence, setInputSequence] = useState([]);
+  const [isError, setIsError] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(true); // データ読み込み中の状態
 
+  // --- シーケンスログインのロジック ---
+  const handleCommandClick = (command) => {
+    // エラー表示中は新しい入力を受け付けない
+    if (isError) return;
+    setInputSequence(prev => [...prev, command]);
+  };
+  
+  
+
   // --- useEffectフック ---
+  
+  useEffect(() => {
+    // 入力がなければ何もしない
+    if (inputSequence.length === 0) return;
+
+    // 入力されたシーケンスが正解の長さになったら判定
+    if (inputSequence.length === CORRECT_SEQUENCE.length) {
+      // JSON.stringifyで配列同士を簡単比較
+      if (JSON.stringify(inputSequence) === JSON.stringify(CORRECT_SEQUENCE)) {
+        // ログイン成功！
+        console.log("ログイン成功！");
+        setTimeout(() => setIsLoggedIn(true), 200); // 少し間を置いてから画面遷移
+      } else {
+        // ログイン失敗
+        console.log("コマンドが違います");
+        setIsError(true);
+        // 0.8秒後にエラー状態を解除し、入力をリセット
+        setTimeout(() => {
+          setIsError(false);
+          setInputSequence([]);
+        }, 800);
+      }
+    }
+  }, [inputSequence, setIsLoggedIn]);
+
 
   // 1. Firebase匿名認証
   useEffect(() => {
@@ -199,22 +244,41 @@ export default function Home() {
 
   // パスワード入力画面
   if (!isLoggedIn) {
+    // エラー時に適用するCSSクラスを定義
+    const containerClasses = `p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md w-full max-w-xs text-center transition-all duration-300 ${
+      isError ? 'border-2 border-red-500' : 'border-2 border-transparent'
+    }`;
+    
     return (
-      <div className="p-4">
-        <h1 className="text-xl mb-4">パスワードを入力してください</h1>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && setIsLoggedIn(password === CORRECT_PASSWORD)}
-          className="border px-2 py-1 mr-2"
-        />
-        <button
-          onClick={() => setIsLoggedIn(password === CORRECT_PASSWORD)}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          ログイン
-        </button>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className={containerClasses}>
+          <h1 className="text-xl font-bold mb-2 text-gray-800 dark:text-gray-200">
+            コマンドを入力
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            正しい順番にボタンを押してください
+          </p>
+
+          {/* 入力状況を示すインジケーター */}
+          <div className="flex justify-center space-x-3 my-4">
+            {CORRECT_SEQUENCE.map((_, index) => (
+              <div
+                key={index}
+                className={`w-4 h-4 rounded-full transition-colors ${
+                  index < inputSequence.length ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              ></div>
+            ))}
+          </div>
+
+          {/* コマンドボタン */}
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            <button onClick={() => handleCommandClick('🍎')} className="text-5xl p-4 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">🍎</button>
+            <button onClick={() => handleCommandClick('🍇')} className="text-5xl p-4 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">🍇</button>
+            <button onClick={() => handleCommandClick('🍋')} className="text-5xl p-4 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">🍋</button>
+            <button onClick={() => handleCommandClick('🍉')} className="text-5xl p-4 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">🍉</button>
+          </div>
+        </div>
       </div>
     );
   }
